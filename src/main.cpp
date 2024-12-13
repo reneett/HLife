@@ -230,7 +230,6 @@ void loop() {
   delay(2000);
 }
 
-
 // to set the passcode
 /* void setup() {
   Serial.begin(9600);
