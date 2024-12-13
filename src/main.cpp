@@ -11,6 +11,8 @@
 #include "nvs_flash.h"
 
 #include <Wire.h>
+
+//adxl345
 #include <Adafruit_Sensor.h>
 #include <Adafruit_ADXL345_U.h>
 
@@ -19,7 +21,6 @@
 //accelerometer stuff
 int steps = 0;
 float threshold = 1.2;
-LSM6DSO myIMU;
 float baseX = 0.0;
 float baseY = 0.0;
 
@@ -35,8 +36,9 @@ const int kNetworkTimeout = 30 * 1000;
 const int kNetworkDelay = 1000;
 
 TFT_eSPI tft = TFT_eSPI();
+Adafruit_ADXL345_Unified adxl = Adafruit_ADXL345_Unified(12345);
 
-void calibrateSensor() {
+/* void calibrateSensor() {
     const int samples = 100;
     float tempX = 0.0, tempY = 0.0;
 
@@ -49,7 +51,7 @@ void calibrateSensor() {
     baseX = tempX / samples;
     baseY = tempY / samples;
     Serial.println("Done Calibrating.");
-}
+} */
 
 void nvs_access() {
   // Initialize NVS
@@ -117,14 +119,15 @@ void setup() {
   delay(1000);
   //accelerometer stuff
   Wire.begin();
-  if(!accel.begin()){
+  if(!adxl.begin()){
     Serial.println("Could not find ADXL345, check wiring!");
     while(1);
   }
   
-  calibrateSensor();
+  //calibrateSensor();
 
-  tft.begin();
+  tft.init();
+  updateDisplay();
 
   // We start by connecting to a WiFi network
   delay(1000);
@@ -155,18 +158,21 @@ void loop() {
   WiFiClient c;
   HttpClient http(c);
 
-  float accelX = myIMU.readFloatAccelX() - baseX;
-  float accelY = myIMU.readFloatAccelY() - baseY;
+  sensors_event_t event;
+  adxl.getEvent(&event);
+  float accelX = event.acceleration.x;
+  float accelY = event.acceleration.y;
+  float accelZ = event.acceleration.z;
 
-  float rootmeansquare = sqrt((accelX * accelX) + (accelY * accelY));
+  float rootmeansquare =sqrt(accelX*accelX+accelY*accelY+accelZ*accelZ);
   if (rootmeansquare > threshold) {
     steps++;
-    Serial.println(steps);
+    updateDisplay();
   }
 
   //err = http.get(kHostname, kPath);
   char url[100];
-  sprintf(url, "/?steps_taken=%d", steps);
+  sprintf(url, "/?total_steps_taken=%d", steps);
   err = http.get("3.16.83.61", 5000, url, NULL);
   
   if (err == 0) {
@@ -249,8 +255,8 @@ void loop() {
     Serial.printf("Done\n");
     // Write
     Serial.printf("Updating ssid/pass in NVS ... ");
-    char ssid[] = "";
-    char pass[] = "";
+    char ssid[] = "Twilly15:)";
+    char pass[] = "twilly1027HOTSPOT";
     err = nvs_set_str(my_handle, "ssid", ssid);
     err |= nvs_set_str(my_handle, "pass", pass);
     Serial.printf((err != ESP_OK) ? "Failed!\n" : "Done\n");
