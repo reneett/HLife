@@ -11,7 +11,10 @@
 #include "nvs_flash.h"
 
 #include <Wire.h>
-#include <SparkFunLSM6DSO.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_ADXL345_U.h>
+
+#include <TFT_eSPI.h>
 
 //accelerometer stuff
 int steps = 0;
@@ -30,6 +33,8 @@ const int kNetworkTimeout = 30 * 1000;
 
 // Number of milliseconds to wait if no data is available before trying again
 const int kNetworkDelay = 1000;
+
+TFT_eSPI tft = TFT_eSPI();
 
 void calibrateSensor() {
     const int samples = 100;
@@ -87,11 +92,39 @@ void nvs_access() {
   nvs_close(my_handle);
 }
 
+void updateDisplay() {
+  tft.fillScreen(TFT_BLACK);
+  tft.setRotation(1);
+  tft.setTextSize(2);
+  tft.setTextColor(TFT_WHITE);
+  tft.setCursor(0, 0);
+  tft.drawCentreString("Step Count: ", 160, 80, 2);
+  char str[100];
+  sprintf(str, "%d", steps);
+  tft.drawCentreString(str, 160, 100, 2);
+  char str2[1000];
+  sprintf(str2, "%d", 10000-steps);
+  sprintf(str2, " steps remaining!");
+  tft.drawCentreString(str2, 160, 120, 2);
+}
+
 void setup() {
   Serial.begin(9600);
   delay(1000);
   // Retrieve SSID/PASSWD from flash before anything else
   nvs_access();
+
+  delay(1000);
+  //accelerometer stuff
+  Wire.begin();
+  if(!accel.begin()){
+    Serial.println("Could not find ADXL345, check wiring!");
+    while(1);
+  }
+  
+  calibrateSensor();
+
+  tft.begin();
 
   // We start by connecting to a WiFi network
   delay(1000);
@@ -114,14 +147,6 @@ void setup() {
   Serial.println("MAC address: ");
   Serial.println(WiFi.macAddress());
 
-  //accelerometer stuff
-  Wire.begin();
-  if (!myIMU.begin()) {
-      Serial.println("Failed to initialize LSM6DSO. Check connections!");
-      while (1);
-  }
-  myIMU.initialize(BASIC_SETTINGS);
-  calibrateSensor();
 
 }
 
@@ -224,8 +249,8 @@ void loop() {
     Serial.printf("Done\n");
     // Write
     Serial.printf("Updating ssid/pass in NVS ... ");
-    char ssid[] = "Hungster2b_EXT";
-    char pass[] = "hungster";
+    char ssid[] = "";
+    char pass[] = "";
     err = nvs_set_str(my_handle, "ssid", ssid);
     err |= nvs_set_str(my_handle, "pass", pass);
     Serial.printf((err != ESP_OK) ? "Failed!\n" : "Done\n");
@@ -244,4 +269,4 @@ void loop() {
 void loop() {
 // put your main code here, to run repeatedly:
   delay(1000);
-}  */
+} */
