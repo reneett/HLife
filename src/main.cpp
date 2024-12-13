@@ -23,6 +23,7 @@ int steps = 0;
 float threshold = 1.2;
 float baseX = 0.0;
 float baseY = 0.0;
+float baseZ = 0.0;
 
 // This example downloads the URL "http://arduino.cc/"
 char ssid[50]; // your network SSID (name)
@@ -38,20 +39,24 @@ const int kNetworkDelay = 1000;
 TFT_eSPI tft = TFT_eSPI();
 Adafruit_ADXL345_Unified adxl = Adafruit_ADXL345_Unified(12345);
 
-/* void calibrateSensor() {
-    const int samples = 100;
-    float tempX = 0.0, tempY = 0.0;
+void calibrateSensor() {
+  const int samples = 100;
+  float tempX = 0.0, tempY = 0.0, tempZ = 0.0;
 
-    for (int i = 0; i < samples; i++) {
-        tempX += myIMU.readFloatAccelX();
-        tempY += myIMU.readFloatAccelY();
-        delay(10);
-    }
+  for (int i = 0; i < samples; i++) {
+    sensors_event_t event;
+    adxl.getEvent(&event);
+    tempX += event.acceleration.x;
+    tempY += event.acceleration.y;
+    tempZ += event.acceleration.z;
+    delay(1000);
+  }
 
-    baseX = tempX / samples;
-    baseY = tempY / samples;
-    Serial.println("Done Calibrating.");
-} */
+  baseX = tempX / samples;
+  baseY = tempY / samples;
+  baseZ = tempZ / samples;
+  Serial.println("Done Calibrating.");
+}
 
 void nvs_access() {
   // Initialize NVS
@@ -100,14 +105,16 @@ void updateDisplay() {
   tft.setTextSize(2);
   tft.setTextColor(TFT_WHITE);
   tft.setCursor(0, 0);
-  tft.drawCentreString("Step Count: ", 160, 80, 2);
+  float height = tft.height()/2;
+  float width = tft.width()/2;
+  tft.drawString("Step Count: ", width, height-10, 2);
   char str[100];
   sprintf(str, "%d", steps);
-  tft.drawCentreString(str, 160, 100, 2);
-  char str2[1000];
+  tft.drawCentreString(str, width, height, 2);
+  char str2[100];
   sprintf(str2, "%d", 10000-steps);
   sprintf(str2, " steps remaining!");
-  tft.drawCentreString(str2, 160, 120, 2);
+  tft.drawCentreString(str2, width, height+10, 2);
 }
 
 void setup() {
@@ -124,7 +131,7 @@ void setup() {
     while(1);
   }
   
-  //calibrateSensor();
+  calibrateSensor();
 
   tft.init();
   updateDisplay();
@@ -150,7 +157,6 @@ void setup() {
   Serial.println("MAC address: ");
   Serial.println(WiFi.macAddress());
 
-
 }
 
 void loop() {
@@ -164,8 +170,9 @@ void loop() {
   float accelY = event.acceleration.y;
   float accelZ = event.acceleration.z;
 
-  float rootmeansquare =sqrt(accelX*accelX+accelY*accelY+accelZ*accelZ);
-  if (rootmeansquare > threshold) {
+  float rootmeansquare = sqrt(accelX*accelX+accelY*accelY+accelZ*accelZ);
+  float basemeansquare = sqrt(baseX*baseX+baseY*baseY+baseZ*baseZ);
+  if (rootmeansquare > basemeansquare+threshold) {
     steps++;
     updateDisplay();
   }
@@ -173,7 +180,7 @@ void loop() {
   //err = http.get(kHostname, kPath);
   char url[100];
   sprintf(url, "/?total_steps_taken=%d", steps);
-  err = http.get("3.16.83.61", 5000, url, NULL);
+  err = http.get("3.133.102.136", 5000, url, NULL);
   
   if (err == 0) {
     Serial.println("startedRequest ok");
@@ -224,10 +231,7 @@ void loop() {
   }
   http.stop();
 
-  // And just stop, now that we've tried a download
-  // while (1)
-  //   ;
-  delay(2000);
+  delay(1000);
 }
 
 // to set the passcode
