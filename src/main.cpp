@@ -175,7 +175,7 @@ void loop() {
 
   float rootmeansquare = sqrt(accelX*accelX+accelY*accelY+accelZ*accelZ);
   float basemeansquare = sqrt(baseX*baseX+baseY*baseY+baseZ*baseZ);
-  Serial.println(basemeansquare+threshold);
+  
   if (rootmeansquare > basemeansquare+threshold) {
     steps++;
     updateDisplay();
