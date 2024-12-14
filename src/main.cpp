@@ -3,32 +3,27 @@
 #include <WiFi.h>
 #include <inttypes.h>
 #include <stdio.h>
-
 #include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "nvs.h"
 #include "nvs_flash.h"
-
 #include <Wire.h>
-
-//adxl345
 #include <Adafruit_Sensor.h>
 #include <Adafruit_ADXL345_U.h>
-
 #include <TFT_eSPI.h>
 
 //accelerometer stuff
+Adafruit_ADXL345_Unified adxl = Adafruit_ADXL345_Unified(12345);
 int steps = 0;
-float threshold = 1.2;
+float threshold = 1.5;
 float baseX = 0.0;
 float baseY = 0.0;
 float baseZ = 0.0;
 
-// This example downloads the URL "http://arduino.cc/"
-char ssid[50]; // your network SSID (name)
-char pass[50]; // your network password (use for WPA, or use
-// as key for WEP)
+//wifi information
+char ssid[50]; 
+char pass[50]; 
 
 // Number of milliseconds to wait without receiving any data before we give up
 const int kNetworkTimeout = 30 * 1000;
@@ -37,8 +32,8 @@ const int kNetworkTimeout = 30 * 1000;
 const int kNetworkDelay = 1000;
 
 TFT_eSPI tft = TFT_eSPI();
-Adafruit_ADXL345_Unified adxl = Adafruit_ADXL345_Unified(12345);
 
+//calibrates acccelerometer for 10 seconds
 void calibrateSensor() {
   const int samples = 100;
   float tempX = 0.0, tempY = 0.0, tempZ = 0.0;
@@ -49,9 +44,8 @@ void calibrateSensor() {
     tempX += event.acceleration.x;
     tempY += event.acceleration.y;
     tempZ += event.acceleration.z;
-    delay(1000);
+    delay(100);
   }
-
   baseX = tempX / samples;
   baseY = tempY / samples;
   baseZ = tempZ / samples;
@@ -99,22 +93,27 @@ void nvs_access() {
   nvs_close(my_handle);
 }
 
+// updates display to show steps taken and steps remaining
 void updateDisplay() {
   tft.fillScreen(TFT_BLACK);
-  tft.setRotation(1);
-  tft.setTextSize(2);
-  tft.setTextColor(TFT_WHITE);
   tft.setCursor(0, 0);
   float height = tft.height()/2;
   float width = tft.width()/2;
-  tft.drawString("Step Count: ", width, height-10, 2);
+  tft.drawString("Step Count: ", 0, height-50, 2);
   char str[100];
   sprintf(str, "%d", steps);
-  tft.drawCentreString(str, width, height, 2);
+  tft.drawString(str, width, height-20, 2);
   char str2[100];
-  sprintf(str2, "%d", 10000-steps);
-  sprintf(str2, " steps remaining!");
-  tft.drawCentreString(str2, width, height+10, 2);
+  sprintf(str2, "%d steps left!", 10000-steps);
+  tft.drawString(str2, 0, height+20, 1);
+  if(10000-steps <= 2000){
+    tft.drawString("Almost there!", 0, height+40, 1);
+  } else if (steps%3 == 0) {
+    tft.drawString("You're doing great!", 0, height+40, 1);
+  } else {
+    tft.drawString("You can do it!", 0, height+40, 1);
+  }
+  
 }
 
 void setup() {
@@ -134,6 +133,10 @@ void setup() {
   calibrateSensor();
 
   tft.init();
+  tft.setRotation(1);
+  tft.setTextSize(2);
+  tft.setTextColor(TFT_WHITE);
+  tft.setCursor(0, 0);
   updateDisplay();
 
   // We start by connecting to a WiFi network
@@ -172,12 +175,12 @@ void loop() {
 
   float rootmeansquare = sqrt(accelX*accelX+accelY*accelY+accelZ*accelZ);
   float basemeansquare = sqrt(baseX*baseX+baseY*baseY+baseZ*baseZ);
+  Serial.println(basemeansquare+threshold);
   if (rootmeansquare > basemeansquare+threshold) {
     steps++;
     updateDisplay();
   }
 
-  //err = http.get(kHostname, kPath);
   char url[100];
   sprintf(url, "/?total_steps_taken=%d", steps);
   err = http.get("3.133.102.136", 5000, url, NULL);
@@ -188,35 +191,9 @@ void loop() {
     if (err >= 0) {
       Serial.print("Got status code: ");
       Serial.println(err);
-      // Usually you'd check that the response code is 200 or a
-      // similar "success" code (200-299) before carrying on,
-      // but we'll print out whatever response we get
       err = http.skipResponseHeaders();
       if (err >= 0) {
-        int bodyLen = http.contentLength();
-        Serial.print("Content length is: ");
-        Serial.println(bodyLen);
-        Serial.println();
-        Serial.println("Body returned follows:");
-        // Now we've got to the body, so we can print it out
-        unsigned long timeoutStart = millis();
-        char c;
-        // Whilst we haven't timed out & haven't reached the end of the body
-        while ((http.connected() || http.available()) &&
-        ((millis() - timeoutStart) < kNetworkTimeout)) {
-          if (http.available()) {
-            c = http.read();
-            // Print out this character
-            Serial.print(c);
-            bodyLen--;
-            // We read something, reset the timeout counter
-            timeoutStart = millis();
-          } else {
-            // We haven't got any data, so let's pause to allow some to
-            // arrive
-            delay(kNetworkDelay);
-          }
-        }
+        
       } else {
         Serial.print("Failed to skip response headers: ");
         Serial.println(err);
@@ -231,7 +208,7 @@ void loop() {
   }
   http.stop();
 
-  delay(1000);
+  delay(300); //to account for time during the step
 }
 
 // to set the passcode
@@ -258,8 +235,8 @@ void loop() {
     Serial.printf("Done\n");
     // Write
     Serial.printf("Updating ssid/pass in NVS ... ");
-    char ssid[] = "Twilly15:)";
-    char pass[] = "twilly1027HOTSPOT";
+    char ssid[] = "";
+    char pass[] = "";
     err = nvs_set_str(my_handle, "ssid", ssid);
     err |= nvs_set_str(my_handle, "pass", pass);
     Serial.printf((err != ESP_OK) ? "Failed!\n" : "Done\n");
